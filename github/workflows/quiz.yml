@@ -1,0 +1,29 @@
+name: Daily Japanese Quiz
+
+on:
+  schedule:
+    # 매일 UTC 12:00 = 한국시간(KST) 21:00 (밤 9시)
+    - cron: "0 12 * * *"
+  # 테스트용: Actions 탭에서 수동으로도 실행 가능하게 해줌
+  workflow_dispatch: {}
+
+jobs:
+  run-quiz:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 파이썬 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 퀴즈봇 실행
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+        run: python quiz_bot.py
