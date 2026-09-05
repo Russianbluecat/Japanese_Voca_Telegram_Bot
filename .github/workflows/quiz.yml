@@ -7,6 +7,14 @@ on:
   # 테스트용: Actions 탭에서 수동으로도 실행 가능하게 해줌
   workflow_dispatch: {}
 
+# 같은 봇 토큰으로 두 개의 실행이 동시에 getUpdates를 폴링하면
+# 텔레그램 서버에서 409 Conflict가 계속 발생한다.
+# 이를 원천 방지하기 위해, 새 실행이 시작되면 이전에 아직 끝나지 않은
+# 실행을 자동으로 취소하도록 설정한다. (항상 최신 실행 하나만 살아있게 됨)
+concurrency:
+  group: daily-japanese-quiz
+  cancel-in-progress: true
+
 jobs:
   run-quiz:
     runs-on: ubuntu-latest
