@@ -319,8 +319,15 @@ def main():
 
             cid = str(callback["message"]["chat"]["id"])
             session = sessions.get(cid)
-            if session is None or session["done"] or not session["waiting"]:
-                continue  # 등록되지 않은 사람이거나, 이미 끝났거나, 대기 중이 아니면 무시
+            if session is None:
+                print(f"[정보] 등록되지 않은 chat_id={cid} 로부터 콜백 수신 - 무시")
+                continue
+            if session["done"]:
+                print(f"[정보] chat_id={cid} 는 이미 퀴즈가 끝난 상태에서 콜백 수신 - 무시")
+                continue
+            if not session["waiting"]:
+                print(f"[정보] chat_id={cid} 는 현재 대기 중이 아닌데 콜백 수신 (아마 이전 문제의 오래된 버튼) - 무시")
+                continue
 
             selected_index_raw = callback["data"]
             answer_callback_query(callback["id"])  # 버튼 로딩 스피너 제거
@@ -328,9 +335,11 @@ def main():
             try:
                 selected_index = int(selected_index_raw)
                 selected = session["current_choices"][selected_index]
-            except (ValueError, IndexError):
+            except (ValueError, IndexError) as e:
+                print(f"[경고] chat_id={cid} 콜백 데이터 해석 실패 (data={selected_index_raw!r}): {e}")
                 continue  # 예상 못한 데이터면 무시 (안전장치)
 
+            print(f"[정보] chat_id={cid} 가 '{selected}' 선택함 (index={session['index']})")
             handle_answer(cid, session, selected)
 
         # 타임아웃된 세션 처리 (버튼을 안 누르고 10분이 지난 경우)
