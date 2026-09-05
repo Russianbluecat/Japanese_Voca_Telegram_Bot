@@ -151,7 +151,7 @@ def get_updates(offset, timeout=LONG_POLL_TIMEOUT_SEC):
         status = e.response.status_code if e.response is not None else None
         if status == 409:
             print("[경고] getUpdates 409 Conflict 발생 - 다른 인스턴스가 돌고 있을 가능성이 높습니다. 15초 대기 후 재시도")
-            time.sleep(15)   # 3초 → 15초로 늘림 (텔레그램 쪽 이전 요청이 죽을 시간 확보)
+            time.sleep(15)
             return []
         raise
     except requests.exceptions.RequestException as e:
