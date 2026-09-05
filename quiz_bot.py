@@ -150,13 +150,13 @@ def get_updates(offset, timeout=LONG_POLL_TIMEOUT_SEC):
     except requests.exceptions.HTTPError as e:
         status = e.response.status_code if e.response is not None else None
         if status == 409:
-            print("[경고] getUpdates 409 Conflict 발생 (일시적 충돌로 추정) - 3초 후 재시도")
-            time.sleep(3)
+            print("[경고] getUpdates 409 Conflict 발생 - 다른 인스턴스가 돌고 있을 가능성이 높습니다. 15초 대기 후 재시도")
+            time.sleep(15)   # 3초 → 15초로 늘림 (텔레그램 쪽 이전 요청이 죽을 시간 확보)
             return []
         raise
     except requests.exceptions.RequestException as e:
-        print(f"[경고] getUpdates 네트워크 오류: {e} - 3초 후 재시도")
-        time.sleep(3)
+        print(f"[경고] getUpdates 네트워크 오류: {e} - 5초 후 재시도")
+        time.sleep(5)
         return []
 
 
