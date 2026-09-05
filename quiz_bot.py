@@ -271,6 +271,13 @@ def handle_timeout(chat_id, session):
 # 4. 메인 실행 흐름
 # ────────────────────────────────
 def main():
+    # 혹시 모를 웹훅을 강제로 제거 (안전장치)
+    try:
+        requests.get(f"{API_BASE}/deleteWebhook", timeout=10)
+        print("[정보] 웹훅 삭제 요청 완료 (이미 없었어도 상관없음)")
+    except Exception as e:
+        print(f"[경고] 웹훅 삭제 시도 중 오류: {e}")
+       
     if not CHAT_IDS:
         raise RuntimeError("TELEGRAM_CHAT_IDS 환경변수에 최소 1개의 chat_id가 필요합니다.")
 
