@@ -26,4 +26,5 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
-        run: python quiz_bot.py
+          PYTHONUNBUFFERED: "1"  # 로그가 버퍼링 없이 바로바로 출력되게 함 (실시간 확인용)
+        run: python -u quiz_bot.py
