@@ -137,11 +137,27 @@ def get_updates(offset, timeout=LONG_POLL_TIMEOUT_SEC):
     offset: 이 값 이후의 update_id만 가져옴 (중복 처리 방지)
     이 봇 전체에 온 모든 사용자의 업데이트를 한 번에 가져와서,
     이후 로직에서 chat_id별로 분류(라우팅)한다.
+
+    409 Conflict(같은 토큰으로 동시에 폴링이 겹치는 경우 등 일시적 충돌)가 나면
+    스크립트를 죽이지 않고, 잠깐 대기 후 빈 리스트를 반환해서 다음 루프에서
+    다시 시도하도록 한다.
     """
     params = {"timeout": timeout, "offset": offset}
-    resp = requests.get(f"{API_BASE}/getUpdates", params=params, timeout=timeout + 10)
-    resp.raise_for_status()
-    return resp.json().get("result", [])
+    try:
+        resp = requests.get(f"{API_BASE}/getUpdates", params=params, timeout=timeout + 10)
+        resp.raise_for_status()
+        return resp.json().get("result", [])
+    except requests.exceptions.HTTPError as e:
+        status = e.response.status_code if e.response is not None else None
+        if status == 409:
+            print("[경고] getUpdates 409 Conflict 발생 (일시적 충돌로 추정) - 3초 후 재시도")
+            time.sleep(3)
+            return []
+        raise
+    except requests.exceptions.RequestException as e:
+        print(f"[경고] getUpdates 네트워크 오류: {e} - 3초 후 재시도")
+        time.sleep(3)
+        return []
 
 
 def build_inline_keyboard(choices):
