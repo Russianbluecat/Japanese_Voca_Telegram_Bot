@@ -45,7 +45,7 @@ API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 NUM_QUESTIONS = 5          # 한 사람당 낼 문제 수
 NUM_CHOICES = 4            # 선택지 개수 (정답 포함)
-ANSWER_TIMEOUT_SEC = 300   # 문제 하나당 답변 대기 시간 (5분)
+ANSWER_TIMEOUT_SEC = 600   # 문제 하나당 답변 대기 시간 (10분)
 LONG_POLL_TIMEOUT_SEC = 10 # 텔레그램 getUpdates 롱폴 대기 시간 (타임아웃 체크 주기에 영향)
 
 
@@ -242,8 +242,24 @@ def advance_session(chat_id, session):
             chat_id,
             f"🎉 퀴즈 종료! {NUM_QUESTIONS}문제 중 {session['score']}개 맞혔습니다."
         )
+        send_message(chat_id, build_review_text(session))
     else:
         send_next_question(chat_id, session)
+
+
+def build_review_text(session):
+    """
+    퀴즈가 끝난 후, 오늘 나온 5문제의 완성된 원문장 + 번역을 복습용으로 정리한다.
+    빈칸 문제 문장의 "(　　　)" 부분을 정답 단어로 다시 채워서 원문장을 복원한다.
+    """
+    lines = ["오늘의 문장 5개를 복습하시기 바랍니다.", ""]
+    for q in session["questions"]:
+        original_sentence = q["question"].replace("(　　　)", f"({q['answer']})")
+        lines.append(original_sentence)
+        if q["translation"]:
+            lines.append(f"({q['translation']})")
+        lines.append("")  # 문제 사이 빈 줄
+    return "\n".join(lines).rstrip()
 
 
 def handle_answer(chat_id, session, selected):
@@ -364,7 +380,7 @@ def main():
                     # 1~4가 아닌 텍스트를 보냈을 때는 다시 안내만 하고, 문제는 그대로 유지한다
                     send_message(cid, "1~4 중에 골라 입력해주세요.")
 
-        # 타임아웃된 세션 처리 (버튼을 안 누르고 5분이 지난 경우)
+        # 타임아웃된 세션 처리 (버튼을 안 누르고 10분이 지난 경우)
         now = time.time()
         for cid, session in sessions.items():
             if session["waiting"] and not session["done"] and now > session["deadline"]:
