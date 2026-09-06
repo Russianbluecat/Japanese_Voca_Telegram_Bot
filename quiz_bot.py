@@ -45,7 +45,7 @@ API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 NUM_QUESTIONS = 5          # 한 사람당 낼 문제 수
 NUM_CHOICES = 4            # 선택지 개수 (정답 포함)
-ANSWER_TIMEOUT_SEC = 300   # 문제 하나당 답변 대기 시간 (10분)
+ANSWER_TIMEOUT_SEC = 300   # 문제 하나당 답변 대기 시간 (5분)
 LONG_POLL_TIMEOUT_SEC = 10 # 텔레그램 getUpdates 롱폴 대기 시간 (타임아웃 체크 주기에 영향)
 
 
@@ -364,7 +364,7 @@ def main():
                     # 1~4가 아닌 텍스트를 보냈을 때는 다시 안내만 하고, 문제는 그대로 유지한다
                     send_message(cid, "1~4 중에 골라 입력해주세요.")
 
-        # 타임아웃된 세션 처리 (버튼을 안 누르고 10분이 지난 경우)
+        # 타임아웃된 세션 처리 (버튼을 안 누르고 5분이 지난 경우)
         now = time.time()
         for cid, session in sessions.items():
             if session["waiting"] and not session["done"] and now > session["deadline"]:
