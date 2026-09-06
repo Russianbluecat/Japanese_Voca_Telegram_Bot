@@ -45,7 +45,7 @@ API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 NUM_QUESTIONS = 5          # 한 사람당 낼 문제 수
 NUM_CHOICES = 4            # 선택지 개수 (정답 포함)
-ANSWER_TIMEOUT_SEC = 600   # 문제 하나당 답변 대기 시간 (10분)
+ANSWER_TIMEOUT_SEC = 300   # 문제 하나당 답변 대기 시간 (10분)
 LONG_POLL_TIMEOUT_SEC = 10 # 텔레그램 getUpdates 롱폴 대기 시간 (타임아웃 체크 주기에 영향)
 
 
@@ -150,13 +150,13 @@ def get_updates(offset, timeout=LONG_POLL_TIMEOUT_SEC):
     except requests.exceptions.HTTPError as e:
         status = e.response.status_code if e.response is not None else None
         if status == 409:
-            print("[경고] getUpdates 409 Conflict 발생 - 다른 인스턴스가 돌고 있을 가능성이 높습니다. 15초 대기 후 재시도")
-            time.sleep(15)
+            print("[경고] getUpdates 409 Conflict 발생 (일시적 충돌로 추정) - 3초 후 재시도")
+            time.sleep(3)
             return []
         raise
     except requests.exceptions.RequestException as e:
-        print(f"[경고] getUpdates 네트워크 오류: {e} - 5초 후 재시도")
-        time.sleep(5)
+        print(f"[경고] getUpdates 네트워크 오류: {e} - 3초 후 재시도")
+        time.sleep(3)
         return []
 
 
@@ -216,7 +216,7 @@ def send_next_question(chat_id, session):
         f"[{session['index'] + 1}/{NUM_QUESTIONS}] 문제\n\n"
         f"{q['question']}\n"
         f"{translation_line}\n"
-        f"정답 단어를 골라주세요 👇"
+        f"정답 단어를 골라주세요 👇 (버튼을 누르거나, 1~4 숫자를 입력해도 됩니다)"
     )
     result = send_message(chat_id, question_text, reply_markup=build_inline_keyboard(choices))
 
@@ -271,13 +271,6 @@ def handle_timeout(chat_id, session):
 # 4. 메인 실행 흐름
 # ────────────────────────────────
 def main():
-    # 혹시 모를 웹훅을 강제로 제거 (안전장치)
-    try:
-        requests.get(f"{API_BASE}/deleteWebhook", timeout=10)
-        print("[정보] 웹훅 삭제 요청 완료 (이미 없었어도 상관없음)")
-    except Exception as e:
-        print(f"[경고] 웹훅 삭제 시도 중 오류: {e}")
-       
     if not CHAT_IDS:
         raise RuntimeError("TELEGRAM_CHAT_IDS 환경변수에 최소 1개의 chat_id가 필요합니다.")
 
@@ -321,33 +314,55 @@ def main():
             last_update_id = max(last_update_id, update["update_id"])
 
             callback = update.get("callback_query")
-            if not callback:
+            message = update.get("message")
+
+            # ── 1) 버튼 클릭 처리 ──
+            if callback:
+                cid = str(callback["message"]["chat"]["id"])
+                session = sessions.get(cid)
+                if session is None:
+                    print(f"[정보] 등록되지 않은 chat_id={cid} 로부터 콜백 수신 - 무시")
+                    continue
+                if session["done"]:
+                    print(f"[정보] chat_id={cid} 는 이미 퀴즈가 끝난 상태에서 콜백 수신 - 무시")
+                    continue
+                if not session["waiting"]:
+                    print(f"[정보] chat_id={cid} 는 현재 대기 중이 아닌데 콜백 수신 (아마 이전 문제의 오래된 버튼) - 무시")
+                    continue
+
+                selected_index_raw = callback["data"]
+                answer_callback_query(callback["id"])  # 버튼 로딩 스피너 제거
+
+                try:
+                    selected_index = int(selected_index_raw)
+                    selected = session["current_choices"][selected_index]
+                except (ValueError, IndexError) as e:
+                    print(f"[경고] chat_id={cid} 콜백 데이터 해석 실패 (data={selected_index_raw!r}): {e}")
+                    continue  # 예상 못한 데이터면 무시 (안전장치)
+
+                print(f"[정보] chat_id={cid} 가 버튼으로 '{selected}' 선택함 (index={session['index']})")
+                handle_answer(cid, session, selected)
                 continue
 
-            cid = str(callback["message"]["chat"]["id"])
-            session = sessions.get(cid)
-            if session is None:
-                print(f"[정보] 등록되지 않은 chat_id={cid} 로부터 콜백 수신 - 무시")
-                continue
-            if session["done"]:
-                print(f"[정보] chat_id={cid} 는 이미 퀴즈가 끝난 상태에서 콜백 수신 - 무시")
-                continue
-            if not session["waiting"]:
-                print(f"[정보] chat_id={cid} 는 현재 대기 중이 아닌데 콜백 수신 (아마 이전 문제의 오래된 버튼) - 무시")
-                continue
+            # ── 2) 텍스트 입력 처리 (버튼이 혹시 안 눌렸을 때의 백업 수단) ──
+            if message:
+                cid = str(message["chat"]["id"])
+                session = sessions.get(cid)
+                if session is None or session["done"] or not session["waiting"]:
+                    continue  # 등록 안 됨/이미 끝남/현재 답변 대기 중이 아니면 무시
 
-            selected_index_raw = callback["data"]
-            answer_callback_query(callback["id"])  # 버튼 로딩 스피너 제거
+                text = (message.get("text") or "").strip()
 
-            try:
-                selected_index = int(selected_index_raw)
-                selected = session["current_choices"][selected_index]
-            except (ValueError, IndexError) as e:
-                print(f"[경고] chat_id={cid} 콜백 데이터 해석 실패 (data={selected_index_raw!r}): {e}")
-                continue  # 예상 못한 데이터면 무시 (안전장치)
-
-            print(f"[정보] chat_id={cid} 가 '{selected}' 선택함 (index={session['index']})")
-            handle_answer(cid, session, selected)
+                if text in ("1", "2", "3", "4"):
+                    selected_index = int(text) - 1
+                    if selected_index >= len(session["current_choices"]):
+                        continue  # 선택지가 4개보다 적은 예외적인 경우 방어
+                    selected = session["current_choices"][selected_index]
+                    print(f"[정보] chat_id={cid} 가 텍스트로 '{selected}' 선택함 (index={session['index']})")
+                    handle_answer(cid, session, selected)
+                else:
+                    # 1~4가 아닌 텍스트를 보냈을 때는 다시 안내만 하고, 문제는 그대로 유지한다
+                    send_message(cid, "1~4 중에 골라 입력해주세요.")
 
         # 타임아웃된 세션 처리 (버튼을 안 누르고 10분이 지난 경우)
         now = time.time()
