@@ -3,7 +3,7 @@ name: Daily Japanese Quiz
 on:
   schedule:
     # 매일 UTC 12:00 = 한국시간(KST) 20:53 (밤 8시 53분)
-    - cron: "53 11 * * *"
+    - cron: "10 11 * * *"
   # 테스트용: Actions 탭에서 수동으로도 실행 가능하게 해줌
   workflow_dispatch: {}
 
